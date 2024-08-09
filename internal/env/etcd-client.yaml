@@ -1,0 +1,25 @@
+etcdclient:
+  enabled: true
+  cache:
+    enabled: true
+    expire_ms: 1000
+    gc_interval_sec: 10
+  grpc:
+    address: localhost
+    enabled: true
+    port: 8442
+    proto: tcp
+    tls:
+      enabled: true
+      ca_file: cert/grpc-test_ca-cert.pem
+      cert_file: cert/grpc-test_server-cert.pem
+      key_file: cert/grpc-test_server-key.pem
+  http:
+    address: localhost
+    enabled: true
+    port: 8443
+    tls:
+      enabled: true
+      ca_file: cert/http-test_ca-cert.pem
+      cert_file: cert/http-test_server-cert.pem
+      key_file: cert/http-test_server-key.pem

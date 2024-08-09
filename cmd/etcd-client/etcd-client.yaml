@@ -1,0 +1,19 @@
+etcdclient:
+  enabled: true
+  cache:
+    enabled: true
+    expire_ms: 1000
+    gc_interval_sec: 10
+  grpc:
+    address: localhost
+    enabled: true
+    port: 8442
+    proto: tcp
+    tls:
+      enabled: false
+  http:
+    address: localhost
+    enabled: true
+    port: 8443
+    tls:
+      enabled: false
