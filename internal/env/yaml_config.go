@@ -12,6 +12,7 @@ package env
 
 import (
 	"fmt"
+	"time"
 )
 
 var _ YamlConfig = (*yamlConfig)(nil)
@@ -22,6 +23,13 @@ type YamlConfig interface {
 	CacheEnabled() bool
 	CacheExpireMs() int
 	CacheGCIntervalSec() int
+	EtcdAddresses() []string
+	EtcdEnabled() bool
+	EtcdDialTimeout() time.Duration
+	EtcdTLSCAFile() string
+	EtcdTLSCertFile() string
+	EtcdTLSEnabled() bool
+	EtcdTLSKeyFile() string
 	GRPCAddress() string
 	GRPCEnabled() bool
 	GRPCPort() int
@@ -45,6 +53,14 @@ type yamlConfig struct {
 			Enabled     bool
 			cacheConfig `mapstructure:",squash"`
 		}
+		Etcd struct {
+			Enabled    bool
+			etcdConfig `mapstructure:",squash"`
+			TLS        struct {
+				Enabled   bool
+				tlsConfig `mapstructure:",squash"`
+			}
+		}
 		GRPC struct {
 			Enabled    bool
 			grpcConfig `mapstructure:",squash"`
@@ -67,6 +83,11 @@ type yamlConfig struct {
 type cacheConfig struct {
 	ExpireMs      int `mapstructure:"expire_ms"`
 	GCIntervalSec int `mapstructure:"gc_interval_sec"`
+}
+
+type etcdConfig struct {
+	Addresses   []string
+	DialTimeout time.Duration `mapstructure:"dial_timeout"`
 }
 
 type grpcConfig struct {
@@ -111,6 +132,62 @@ func (y *yamlConfig) CacheGCIntervalSec() int {
 		return y.EtcdClient.Cache.GCIntervalSec
 	}
 	return 0
+}
+
+func (y *yamlConfig) EtcdAddresses() []string {
+
+	if y != nil {
+		return y.EtcdClient.Etcd.Addresses
+	}
+	return []string{}
+}
+
+func (y *yamlConfig) EtcdEnabled() bool {
+
+	if y != nil {
+		return y.EtcdClient.Etcd.Enabled
+	}
+	return false
+}
+
+func (y *yamlConfig) EtcdDialTimeout() time.Duration {
+
+	if y != nil {
+		return y.EtcdClient.Etcd.DialTimeout
+	}
+	return 0
+}
+
+func (y *yamlConfig) EtcdTLSCAFile() string {
+
+	if y != nil {
+		return y.EtcdClient.Etcd.TLS.CAFile
+	}
+	return ""
+}
+
+func (y *yamlConfig) EtcdTLSCertFile() string {
+
+	if y != nil {
+		return y.EtcdClient.Etcd.TLS.CertFile
+	}
+	return ""
+}
+
+func (y *yamlConfig) EtcdTLSEnabled() bool {
+
+	if y != nil {
+		return y.EtcdClient.Etcd.TLS.Enabled
+	}
+	return false
+}
+
+func (y *yamlConfig) EtcdTLSKeyFile() string {
+
+	if y != nil {
+		return y.EtcdClient.Etcd.TLS.KeyFile
+	}
+	return ""
 }
 
 // GRPCAddress адрес для выставления конечных точек gRPC-сервера.

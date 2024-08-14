@@ -13,7 +13,6 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"log"
 	"log/slog"
 	"net"
@@ -26,15 +25,19 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/victor-skurikhin/etcd-client/v1/internal/alog"
+	"github.com/victor-skurikhin/etcd-client/v1/internal/controllers"
+	"github.com/victor-skurikhin/etcd-client/v1/internal/controllers/dto"
 	"github.com/victor-skurikhin/etcd-client/v1/internal/env"
+	"github.com/victor-skurikhin/etcd-client/v1/internal/services"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
 
+	pb "github.com/victor-skurikhin/etcd-client/v1/proto"
 	_ "google.golang.org/grpc/encoding/gzip"
 )
 
-const MSG = "etcd-client"
+const MSG = "etcd-proxy"
 
 var (
 	buildVersion = "N/A"
@@ -58,7 +61,7 @@ func run(ctx context.Context) {
 
 func serve(ctx context.Context, cfg env.Config) {
 
-	sLog = alog.GetLogger()
+	sLog = cfg.Logger()
 	listen, err := net.Listen("tcp", cfg.GRPCAddress())
 
 	if err != nil {
@@ -68,8 +71,8 @@ func serve(ctx context.Context, cfg env.Config) {
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 
-	httpServer := makeHTTP(cfg)
-	grpcServer := makeGRPC(cfg)
+	httpServer := makeHTTP(ctx, cfg)
+	grpcServer := makeGRPC(ctx, cfg)
 
 	go func() {
 		<-sigint
@@ -114,7 +117,7 @@ func serve(ctx context.Context, cfg env.Config) {
 	sLog.Info(MSG+"shutdown app", "msg", "Корректное завершение работы сервера")
 }
 
-func makeHTTP(prop env.Config) *fiber.App {
+func makeHTTP(ctx context.Context, cfg env.Config) *fiber.App {
 
 	logHandler := logger.New(logger.Config{
 		Format:       "${pid} | ${time} | ${status} | ${locals:requestid} | ${latency} | ${ip} | ${method} | ${path} | ${error}\n",
@@ -125,33 +128,33 @@ func makeHTTP(prop env.Config) *fiber.App {
 	})
 	slogLogger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	app := fiber.New()
+	app := fiber.New(fiber.Config{DisableHeaderNormalizing: true})
 	micro := fiber.New()
 	app.Mount("/api", micro)
 	app.Use(requestid.New())
-
 	micro.Use(requestid.New())
 
-	if prop.SlogJSON() {
+	if cfg.SlogJSON() {
 		app.Use(alog.New(slogLogger))
 		micro.Use(alog.New(slogLogger))
 	} else {
 		app.Use(logHandler)
 		micro.Use(logHandler)
 	}
+	ctrl := controllers.GetEtcdProxyController(ctx, cfg)
+	micro.Delete("/delete/:name", ctrl.Delete)
+	micro.Get("/get/:name", ctrl.Get)
+	micro.Put("/put/:name", ctrl.Put)
 	micro.All("*", func(c *fiber.Ctx) error {
 		path := c.Path()
 		return c.
 			Status(fiber.StatusNotFound).
-			JSON(fiber.Map{
-				"status":  "fail",
-				"message": fmt.Sprintf("Path: %v does not exists on this server", path),
-			})
+			JSON(dto.StatusMessagePathDoesNotExists(path))
 	})
 	return app
 }
 
-func makeGRPC(cfg env.Config) *grpc.Server {
+func makeGRPC(ctx context.Context, cfg env.Config) *grpc.Server {
 
 	var opts []grpc.ServerOption
 
@@ -164,7 +167,9 @@ func makeGRPC(cfg env.Config) *grpc.Server {
 			grpc.Creds(insecure.NewCredentials()),
 		}
 	}
+	srv := services.GetEtcdProxyService(ctx, cfg)
 	grpcServer := grpc.NewServer(opts...)
+	pb.RegisterEtcdClientServiceServer(grpcServer, srv)
 	reflection.Register(grpcServer)
 
 	return grpcServer

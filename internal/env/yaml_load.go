@@ -50,10 +50,10 @@ func LoadConfig(path string) (cfg YamlConfig, err error) {
 	if os.Getenv("GO_FAVORITES_SKIP_LOAD_CONFIG") != "" {
 		return &yamlConfig{}, err
 	}
-	viper.SetConfigName("etcd-client")       // мя файла yamlConfig
-	viper.SetConfigType("yaml")              // REQUIRED если файл yamlConfig не имеет расширения в имени
-	viper.AddConfigPath("/etc/etcd-client/") // путь для поиска файла yamlConfig
-	viper.AddConfigPath(path)                // несколько раз, чтобы добавить несколько путей поиска
+	viper.SetConfigName("etcd-client.yaml") // мя файла yamlConfig
+	viper.SetConfigType("yaml")             // REQUIRED если файл yamlConfig не имеет расширения в имени
+	viper.AddConfigPath("/etc/etcd-proxy/") // путь для поиска файла yamlConfig
+	viper.AddConfigPath(path)               // несколько раз, чтобы добавить несколько путей поиска
 
 	err = viper.ReadInConfig() // Find and read the yamlConfig file
 	if err != nil {            // Handle errors reading the yamlConfig file

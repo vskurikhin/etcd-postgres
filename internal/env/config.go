@@ -13,6 +13,7 @@ package env
 import (
 	"crypto/tls"
 	"fmt"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"log/slog"
 	"sync"
 	"time"
@@ -24,15 +25,17 @@ import (
 const (
 	propertyCacheExpireMs            = "cache-expire"
 	propertyCacheGCIntervalSec       = "cache-gc-interval"
-	propertyConfig                   = "yamlConfig"
+	propertyDebug                    = "debug"
 	propertyEnvironments             = "environments"
+	propertyEtcdClientConfig         = "etcd-proxy-config"
 	propertyFlags                    = "flags"
 	propertyGRPCAddress              = "grpc-address"
 	propertyGRPCTransportCredentials = "grpc-transport-credentials"
 	propertyHTTPAddress              = "http-address"
 	propertyHTTPHTTPTLSConfig        = "http-tls-yamlConfig"
 	propertyLogger                   = "logger"
-	MSG                              = "etcd-client "
+	propertyYamlConfig               = "yamlConfig"
+	MSG                              = "etcd-proxy "
 )
 
 // Config конфигурация собранная из Yaml-файла, переменных окружения и флагов командной строки.
@@ -40,8 +43,9 @@ type Config interface {
 	fmt.Stringer
 	CacheExpire() time.Duration
 	CacheGCInterval() time.Duration
-	YamlConfig() YamlConfig
+	Debug() bool
 	Environments() environments
+	EtcdClientConfig() *clientv3.Config
 	Flags() map[string]interface{}
 	GRPCAddress() string
 	GRPCTransportCredentials() credentials.TransportCredentials
@@ -49,6 +53,7 @@ type Config interface {
 	HTTPTLSConfig() *tls.Config
 	Logger() *slog.Logger
 	SlogJSON() bool
+	YamlConfig() YamlConfig
 }
 
 type mapProperties struct {
@@ -76,6 +81,11 @@ func GetConfig() Config {
 		cacheGCInterval, err := p.getCacheGCInterval()
 		slog.Debug(MSG+"GetConfig", "cacheGCInterval", cacheGCInterval, "err", err)
 
+		etcdAddresses, err := p.getEtcdAddresses()
+		slog.Info(MSG+"GetConfig", "etcdAddresses", etcdAddresses, "err", err)
+		etcdDialTimeout, err := p.getEtcdDialTimeout()
+		slog.Info(MSG+"GetConfig", "etcdDialTimeout", etcdDialTimeout, "err", err)
+
 		grpcAddress, err := p.getGRPCAddress()
 		slog.Debug(MSG+"GetConfig", "grpcAddress", grpcAddress, "err", err)
 		gRPCCredentials, err := p.getGRPCTransportCredentials()
@@ -89,16 +99,19 @@ func GetConfig() Config {
 		properties = getProperties(
 			WithCacheExpire(cacheExpire),
 			WithCacheGCInterval(cacheGCInterval),
-			WithYamlConfig(yml),
+			WithDebug(*flm[propertyDebug].(*bool)),
 			WithEnvironments(*env),
+			WithEtcdClientConfig(etcdClientConfig(etcdAddresses, etcdDialTimeout)),
 			WithFlags(flm),
 			WithGRPCAddress(grpcAddress),
 			WithGRPCTransportCredentials(gRPCCredentials),
 			WithHTTPAddress(httpAddress),
 			WithHTTPTLSConfig(tHTTPConfig),
-			WithLogger(setupLogger(slogJSON(flm))),
+			WithLogger(setupLogger(debug(flm), slogJSON(flm))),
+			WithYamlConfig(yml),
 		)
 	})
+	slog.Debug(MSG+"GetConfig", "config", properties)
 
 	return properties
 }
@@ -141,23 +154,21 @@ func (p *mapProperties) CacheGCInterval() time.Duration {
 	return 0
 }
 
-// WithYamlConfig — Конфигурация.
-func WithYamlConfig(config YamlConfig) func(*mapProperties) {
+// WithDebug — интервал очистки кэша.
+func WithDebug(debug bool) func(*mapProperties) {
 	return func(p *mapProperties) {
-		if config != nil {
-			p.mp.Store(propertyConfig, config)
-		}
+		p.mp.Store(propertyDebug, debug)
 	}
 }
 
-// YamlConfig — текущая yaml конфигурация.
-func (p *mapProperties) YamlConfig() YamlConfig {
-	if c, ok := p.mp.Load(propertyConfig); ok {
-		if cfg, ok := c.(YamlConfig); ok {
-			return cfg
+// Debug TODO.
+func (p *mapProperties) Debug() bool {
+	if a, ok := p.mp.Load(propertyDebug); ok {
+		if debug, ok := a.(bool); ok {
+			return debug
 		}
 	}
-	return nil
+	return false
 }
 
 // WithEnvironments — Окружение.
@@ -175,6 +186,23 @@ func (p *mapProperties) Environments() environments {
 		}
 	}
 	return environments{}
+}
+
+// WithEtcdClientConfig — TODO.
+func WithEtcdClientConfig(config clientv3.Config) func(*mapProperties) {
+	return func(p *mapProperties) {
+		p.mp.Store(propertyEtcdClientConfig, config)
+	}
+}
+
+// EtcdClientConfig TODO.
+func (p *mapProperties) EtcdClientConfig() *clientv3.Config {
+	if c, ok := p.mp.Load(propertyEtcdClientConfig); ok {
+		if client, ok := c.(clientv3.Config); ok {
+			return &client
+		}
+	}
+	return nil
 }
 
 // WithFlags — Флаги.
@@ -295,29 +323,68 @@ func (p *mapProperties) SlogJSON() bool {
 	return slogJSON(p.Flags())
 }
 
+// WithYamlConfig — Конфигурация.
+func WithYamlConfig(config YamlConfig) func(*mapProperties) {
+	return func(p *mapProperties) {
+		if config != nil {
+			p.mp.Store(propertyYamlConfig, config)
+		}
+	}
+}
+
+// YamlConfig — текущая yaml конфигурация.
+func (p *mapProperties) YamlConfig() YamlConfig {
+	if c, ok := p.mp.Load(propertyYamlConfig); ok {
+		if cfg, ok := c.(YamlConfig); ok {
+			return cfg
+		}
+	}
+	return nil
+}
+
 func (p *mapProperties) String() string {
 	format := `
-%s
 CacheExpire: %v
 CacheGCInterval: %v
-Environments: %s
+Debug: %v
+Environments: %v
+EtcdClientConfig: %v
 Flags: %v
 GRPCAddress: %s
 GRPCTransportCredentials: %v
 HTTPAddress: %s
 HTTPTransportCredentials: %v
-`
+%s`
 	return fmt.Sprintf(format,
-		p.YamlConfig(),
 		p.CacheExpire(),
 		p.CacheGCInterval(),
+		p.Debug(),
 		p.Environments(),
+		p.EtcdClientConfig(),
 		p.Flags(),
 		p.GRPCAddress(),
 		p.GRPCTransportCredentials(),
 		p.HTTPAddress(),
 		p.HTTPTLSConfig(),
+		p.YamlConfig(),
 	)
+}
+
+func debug(flags map[string]interface{}) bool {
+	if sj, ok := flags[flagDebug]; ok {
+		if debug, ok := sj.(*bool); ok {
+			return *debug
+		}
+	}
+	return false
+}
+
+func etcdClientConfig(addresses []string, dialTimeout time.Duration) clientv3.Config {
+
+	return clientv3.Config{
+		Endpoints:   addresses,
+		DialTimeout: dialTimeout,
+	}
 }
 
 func slogJSON(flags map[string]interface{}) bool {

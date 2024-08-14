@@ -20,6 +20,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -49,6 +50,30 @@ func (p *preparer) getCacheGCInterval() (time.Duration, error) {
 		p.yml.CacheGCIntervalSec(),
 		time.Second,
 	)
+}
+
+func (p *preparer) getEtcdAddresses() ([]string, error) {
+	if p.yml.EtcdEnabled() {
+		return serverAddressesPrepareProperty(
+			flagEtcdAddresses, p.flagMap,
+			p.env.EtcdAddresses,
+			p.yml.EtcdAddresses())
+	}
+	return []string{}, fmt.Errorf("etcd servers disabled")
+}
+
+func (p *preparer) getEtcdDialTimeout() (time.Duration, error) {
+	if p.yml.EtcdEnabled() {
+		result, err := timePrepareProperty(
+			flagEtcdDialTimeout, p.flagMap,
+			p.env.EtcdDialTimeout,
+			p.yml.EtcdDialTimeout())
+		if result == 0 {
+			return time.Second, err
+		}
+		return result, err
+	}
+	return 0, fmt.Errorf("etcd servers disabled")
 }
 
 func (p *preparer) getGRPCAddress() (string, error) {
@@ -117,6 +142,48 @@ func parseEnvAddress(address []string) string {
 		bb.WriteRune(':')
 	}
 	return fmt.Sprintf("%s%d", bb.String(), port)
+}
+
+func serverAddressesPrepareProperty(
+	name string,
+	flm map[string]interface{},
+	envAddresses []string,
+	ymlAddresses []string,
+) ([]string, error) {
+
+	addresses := make([]string, 0)
+	var err error
+
+	getFlagAddress := func() {
+		if ps, ok := flm[name].(*string); !ok {
+			err = fmt.Errorf("bad value of %s : %v", name, flm[name])
+		} else if ps != nil {
+			addresses = make([]string, 0)
+			for _, a := range strings.Split(*ps, ",") {
+				address := strings.Split(a, ":")
+				addresses = append(addresses, parseEnvAddress(address))
+			}
+		}
+	}
+	if len(envAddresses) > 0 {
+		for _, a := range envAddresses {
+			address := strings.Split(a, ":")
+			addresses = append(addresses, parseEnvAddress(address))
+		}
+	} else if len(ymlAddresses) < 1 {
+		getFlagAddress()
+	} else {
+		for _, a := range ymlAddresses {
+			address := strings.Split(a, ":")
+			addresses = append(addresses, parseEnvAddress(address))
+		}
+	}
+	setIfFlagChanged(name, getFlagAddress)
+
+	if len(addresses) < 1 {
+		err = ErrEmptyAddress
+	}
+	return addresses, err
 }
 
 func serverAddressPrepareProperty(
@@ -246,18 +313,50 @@ func serverTLSConfigPrepareProperty(
 	return &tls.Config{Certificates: []tls.Certificate{cer}}, nil
 }
 
-func setupLogger(slogJSON bool) *slog.Logger {
+func setupLogger(debug bool, slogJSON bool) *slog.Logger { // *flm[propertyDebug].(*bool)
+	var level slog.Level
+	if debug {
+		level = slog.LevelDebug
+	} else {
+		level = slog.LevelInfo
+	}
+	slog.SetLogLoggerLevel(level)
 	if slogJSON {
-		alog.NewLogger(alog.NewHandlerJSON(os.Stdout, nil))
+		alog.NewLogger(alog.NewHandlerJSON(os.Stdout, &slog.HandlerOptions{Level: level}))
 	} else {
 		opts := alog.PrettyHandlerOptions{
 			SlogOpts: slog.HandlerOptions{
-				Level: slog.LevelDebug,
+				Level: level,
 			},
 		}
 		alog.NewLogger(alog.NewPrettyHandlerText(os.Stdout, opts))
 	}
 	return tool.SetLogger(alog.GetLogger())
+}
+
+func timePrepareProperty(name string, flag interface{}, env time.Duration, yaml time.Duration) (time.Duration, error) {
+
+	var result time.Duration
+	var err error
+
+	getFlag := func() {
+		if a, ok := flag.(*time.Duration); !ok {
+			err = fmt.Errorf("bad value")
+		} else {
+			result = *a
+		}
+	}
+	if yaml > 0 {
+		result = yaml
+	}
+	if env > 0 {
+		result = env
+	} else if result == 0 {
+		getFlag()
+	}
+	setIfFlagChanged(name, getFlag)
+
+	return result, err
 }
 
 func toTimePrepareProperty(name string, flag interface{}, env int, yaml int, scale time.Duration) (time.Duration, error) {

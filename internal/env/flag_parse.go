@@ -12,11 +12,15 @@ package env
 
 import (
 	"github.com/spf13/pflag"
+	"time"
 )
 
 const (
 	flagCacheExpireMs      = "cache-expire-ms"
 	flagCacheGCIntervalSec = "cache-gc-interval-sec"
+	flagDebug              = "debug"
+	flagEtcdAddresses      = "etcd-addresses"
+	flagEtcdDialTimeout    = "etcd-dial-timeout"
 	flagGRPCAddress        = "grpc-address"
 	flagGRPCCAFile         = "grpc-ca-file"
 	flagGRPCCertFile       = "grpc-cert-file"
@@ -42,6 +46,23 @@ func makeFlagsParse() map[string]interface{} {
 			flagCacheGCIntervalSec,
 			10,
 			"time before deleting expired keys in second",
+		)
+		flagsMap[flagDebug] = pflag.BoolP(
+			flagDebug,
+			"d",
+			false,
+			"debug logging level",
+		)
+		flagsMap[flagEtcdAddresses] = pflag.StringP(
+			flagEtcdAddresses,
+			"e",
+			"localhost:1379,localhost:2379,localhost:3379",
+			"etcd servers host and port",
+		)
+		flagsMap[flagEtcdDialTimeout] = pflag.Duration(
+			flagEtcdDialTimeout,
+			2*time.Second,
+			"etcd servers host and port",
 		)
 		flagsMap[flagGRPCAddress] = pflag.StringP(
 			flagGRPCAddress,
