@@ -75,6 +75,8 @@ func (f *etcdProxyService) ApiPut(ctx context.Context, data dto.KeyValue) error 
 
 func (f *etcdProxyService) Delete(ctx context.Context, request *pb.EtcdClientRequest) (*pb.EtcdClientResponse, error) {
 
+	f.sLog.InfoContext(ctx, env.MSG+"EtcdProxyService.Delete", "msg", "gRPC", "request", *request)
+
 	var err error
 	var response = pb.EtcdClientResponse{Status: pb.Status_UNKNOWN}
 
@@ -100,6 +102,8 @@ func (f *etcdProxyService) Delete(ctx context.Context, request *pb.EtcdClientReq
 }
 
 func (f *etcdProxyService) Get(ctx context.Context, request *pb.EtcdClientRequest) (*pb.EtcdClientResponse, error) {
+
+	f.sLog.InfoContext(ctx, env.MSG+"EtcdProxyService.Get", "msg", "gRPC", "request", *request)
 
 	var err error
 	var response = pb.EtcdClientResponse{Status: pb.Status_UNKNOWN}
@@ -127,6 +131,8 @@ func (f *etcdProxyService) Get(ctx context.Context, request *pb.EtcdClientReques
 }
 
 func (f *etcdProxyService) Put(ctx context.Context, request *pb.EtcdClientRequest) (*pb.EtcdClientResponse, error) {
+
+	f.sLog.InfoContext(ctx, env.MSG+"EtcdProxyService.Put", "msg", "gRPC", "request", *request)
 
 	var err error
 	var response = pb.EtcdClientResponse{Status: pb.Status_UNKNOWN}
@@ -169,7 +175,7 @@ func (f *etcdProxyService) delete(ctx context.Context, key string) error {
 		)
 		return err
 	} else {
-		f.sLog.InfoContext(ctx,
+		f.sLog.DebugContext(ctx,
 			env.MSG+"EtcdProxyService.delete",
 			"msg", fmt.Sprintf("Delete is done. Metadata is %q\n", resp),
 		)
@@ -185,7 +191,7 @@ func (f *etcdProxyService) get(ctx context.Context, key string) (dto.Result, err
 	if err == nil && data != nil {
 
 		counter := f.hitCounter.Add(1)
-		f.sLog.InfoContext(ctx, env.MSG+"EtcdProxyService.get", "msg", fmt.Sprintf("cache hit count: %d", counter))
+		f.sLog.DebugContext(ctx, env.MSG+"EtcdProxyService.get", "msg", fmt.Sprintf("cache hit count: %d", counter))
 
 		return dto.Result{Value: string(data)}, nil
 	} else {
@@ -214,7 +220,7 @@ func (f *etcdProxyService) cliGet(ctx context.Context, key string) (result dto.R
 		f.sLog.ErrorContext(ctx, env.MSG+"EtcdProxyService.cliGet", "err", err)
 		return dto.Result{}, err
 	} else {
-		f.sLog.InfoContext(ctx,
+		f.sLog.DebugContext(ctx,
 			env.MSG+"EtcdProxyService.cliGet",
 			"msg", fmt.Sprintf("cli.Get is done. Metadata is %v\n", got),
 		)
@@ -222,7 +228,7 @@ func (f *etcdProxyService) cliGet(ctx context.Context, key string) (result dto.R
 			return dto.Result{}, ErrNotFound
 		}
 		result = dto.Result{Value: string(got.Kvs[0].Value)}
-		f.sLog.InfoContext(ctx,
+		f.sLog.DebugContext(ctx,
 			env.MSG+"EtcdProxyService.cliGet",
 			"msg", fmt.Sprintf("the value: %s", string(got.Kvs[0].Value)),
 		)
@@ -247,7 +253,7 @@ func (f *etcdProxyService) put(ctx context.Context, data dto.KeyValue) error {
 		)
 		return err
 	} else {
-		f.sLog.InfoContext(ctx,
+		f.sLog.DebugContext(ctx,
 			env.MSG+"EtcdProxyService.put",
 			"msg", fmt.Sprintf("cli.Put is done. Metadata is %q\n", resp),
 		)
@@ -269,7 +275,7 @@ func (f *etcdProxyService) keyInvalidate(ctx context.Context, cli *clientV3.Clie
 	if resp, err := cli.Put(ctx, CacheInvalidate, key); err != nil {
 		f.sLog.ErrorContext(ctx, env.MSG+"EtcdProxyService.keyInvalidate", "err", err)
 	} else {
-		f.sLog.InfoContext(ctx,
+		f.sLog.DebugContext(ctx,
 			env.MSG+"EtcdProxyService.keyInvalidate",
 			"msg", fmt.Sprintf("key %s in cache invalidate is done. Metadata is %q\n", key, resp),
 		)
@@ -295,7 +301,7 @@ func (f *etcdProxyService) watch(ctx context.Context, cfg env.Config) {
 					"msg", "cache.Delete",
 					"err", err)
 			} else {
-				f.sLog.InfoContext(ctx,
+				f.sLog.DebugContext(ctx,
 					env.MSG+"EtcdProxyService.watch",
 					"msg", fmt.Sprintf("Cache invalidate by key: \"%s\" is OK.", key),
 				)

@@ -11,7 +11,7 @@ stop: stop-etcd-proxy
 
 start-etcd-proxy: stop-etcd-proxy
 	@echo "  >  $(PROJECTNAME) is available at $(HTTP_ADDRESS) and gRPC at $(GRPC_ADDRESS)"
-	@-cd ./$(DIR_ETCD_PROXY) && (./etcd-proxy -h $(HTTP_ADDRESS) -g $(GRPC_ADDRESS) & echo $$! > $(PID_GO_ETCD_PROXY))
+	@-cd ./$(DIR_ETCD_PROXY) && (./etcd-proxy -h $(HTTP_ADDRESS) -g $(GRPC_ADDRESS) && echo $$! > $(PID_GO_ETCD_PROXY))
 	@cat $(PID_GO_ETCD_PROXY) | sed "/^/s/^/  \>  PID: /"
 
 stop-etcd-proxy:
