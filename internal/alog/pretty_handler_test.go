@@ -47,9 +47,6 @@ func TestPrettyHandlerContextWithValue(t *testing.T) {
 			}
 			got := strings.TrimSuffix(buf.String(), "\n")
 			assert.NotNil(t, got)
-			//if got != test.want {
-			//	t.Errorf("\ngot  %s\nwant %s", got, test.want)
-			//}
 		})
 	}
 }
