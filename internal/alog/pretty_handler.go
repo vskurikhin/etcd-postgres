@@ -33,7 +33,7 @@ type PrettyHandler struct {
 	l *log.Logger
 }
 
-// Handle обработчик «симпатичный» логгера.
+// Handle обработчик «симпатичного» логгера.
 func (h *PrettyHandler) Handle(ctx context.Context, r slog.Record) error {
 
 	var level string
