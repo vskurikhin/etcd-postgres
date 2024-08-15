@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/viper"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -45,6 +46,14 @@ func TestLoadConfig(t *testing.T) {
 						Enabled     bool
 						cacheConfig `mapstructure:",squash"`
 					}
+					Etcd struct {
+						Enabled    bool
+						etcdConfig `mapstructure:",squash"`
+						TLS        struct {
+							Enabled   bool
+							tlsConfig `mapstructure:",squash"`
+						}
+					}
 					GRPC struct {
 						Enabled    bool
 						grpcConfig `mapstructure:",squash"`
@@ -70,6 +79,31 @@ func TestLoadConfig(t *testing.T) {
 						cacheConfig: cacheConfig{
 							ExpireMs:      1000,
 							GCIntervalSec: 10,
+						},
+					},
+					Etcd: struct {
+						Enabled    bool
+						etcdConfig `mapstructure:",squash"`
+						TLS        struct {
+							Enabled   bool
+							tlsConfig `mapstructure:",squash"`
+						}
+					}{
+						Enabled: true,
+						etcdConfig: etcdConfig{
+							Addresses:   []string{"localhost:1379", "localhost:2379", "localhost:3379"},
+							DialTimeout: 2 * time.Second,
+						},
+						TLS: struct {
+							Enabled   bool
+							tlsConfig `mapstructure:",squash"`
+						}{
+							Enabled: true,
+							tlsConfig: tlsConfig{
+								CAFile:   "cert/etcd-test_ca-cert.pem",
+								CertFile: "cert/etcd-test_server-cert.pem",
+								KeyFile:  "cert/etcd-test_server-key.pem",
+							},
 						},
 					},
 					GRPC: struct {
@@ -155,9 +189,9 @@ func configFileNotFoundError(path string) error {
 	wd := chDir()
 	defer func() { _ = os.Chdir(wd) }()
 
-	viper.SetConfigName("etcd-client")
+	viper.SetConfigName("etcd-proxy")
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath("/etc/etcd-client/")
+	viper.AddConfigPath("/etc/etcd-proxy/")
 	viper.AddConfigPath(path)
 
 	return viper.ReadInConfig()

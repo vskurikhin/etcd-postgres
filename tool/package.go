@@ -15,7 +15,7 @@ import (
 	"sync"
 )
 
-const MSG = "etcd-client.tool "
+const MSG = "etcd-proxy.tool "
 
 var (
 	once = new(sync.Once)

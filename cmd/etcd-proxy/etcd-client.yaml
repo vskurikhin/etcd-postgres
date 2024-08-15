@@ -1,9 +1,14 @@
+# encoding: utf-8
 etcdclient:
   enabled: true
   cache:
     enabled: true
     expire_ms: 1000
     gc_interval_sec: 10
+  etcd:
+    addresses:
+      - localhost:2379
+    enabled: true
   grpc:
     address: localhost
     enabled: true

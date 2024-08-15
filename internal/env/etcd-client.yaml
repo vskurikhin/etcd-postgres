@@ -4,6 +4,18 @@ etcdclient:
     enabled: true
     expire_ms: 1000
     gc_interval_sec: 10
+  etcd:
+    addresses:
+      - localhost:1379
+      - localhost:2379
+      - localhost:3379
+    dial_timeout: 2s
+    enabled: true
+    tls:
+      enabled: true
+      ca_file: cert/etcd-test_ca-cert.pem
+      cert_file: cert/etcd-test_server-cert.pem
+      key_file: cert/etcd-test_server-key.pem
   grpc:
     address: localhost
     enabled: true
