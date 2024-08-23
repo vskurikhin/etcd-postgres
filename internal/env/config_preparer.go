@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/victor-skurikhin/etcd-client/v1/internal/alog"
 	"github.com/victor-skurikhin/etcd-client/v1/tool"
 	"google.golang.org/grpc/credentials"
@@ -125,6 +126,29 @@ func (p *preparer) getHTTPTLSConfig() (*tls.Config, error) {
 		)
 	}
 	return nil, fmt.Errorf("HTTP server disabled")
+}
+
+func makeDBPool(flm map[string]interface{}, env *environments, yml YamlConfig) (*pgxpool.Pool, error) {
+	if yml.DBEnabled() {
+
+		dsn := fmt.Sprintf(
+			"postgres://%s:%s@%s:%d/%s?sslmode=disable",
+			yml.DBUserName(), yml.DBUserPassword(), yml.DBHost(), yml.DBPort(), yml.DBName(),
+		)
+		getFlagDatabaseDSN := func() {
+			dsn = *(flm[flagDatabaseDSN].(*string))
+		}
+		if env.DataBaseDSN != "" {
+			dsn = env.DataBaseDSN
+		} else if dsn == "postgres://:@:/?sslmode=disable" {
+			getFlagDatabaseDSN()
+		}
+		setIfFlagChanged(flagDatabaseDSN, getFlagDatabaseDSN)
+		slog.Debug(MSG+"makeDBPool", "DatabaseDSN", dsn)
+
+		return tool.DBConnect(dsn), nil
+	}
+	return nil, fmt.Errorf("connect to DataBase disabled")
 }
 
 func parseEnvAddress(address []string) string {

@@ -18,6 +18,7 @@ import (
 const (
 	flagCacheExpireMs      = "cache-expire-ms"
 	flagCacheGCIntervalSec = "cache-gc-interval-sec"
+	flagDatabaseDSN        = "database-dsn"
 	flagDebug              = "debug"
 	flagEtcdAddresses      = "etcd-addresses"
 	flagEtcdDialTimeout    = "etcd-dial-timeout"
@@ -46,6 +47,12 @@ func makeFlagsParse() map[string]interface{} {
 			flagCacheGCIntervalSec,
 			10,
 			"time before deleting expired keys in second",
+		)
+		flagsMap[flagDatabaseDSN] = pflag.StringP(
+			flagDatabaseDSN,
+			"b",
+			"postgres://dbuser:password@localhost:5432/db?sslmode=disable",
+			"database DSN",
 		)
 		flagsMap[flagDebug] = pflag.BoolP(
 			flagDebug,
@@ -87,7 +94,7 @@ func makeFlagsParse() map[string]interface{} {
 		)
 		flagsMap[flagHTTPAddress] = pflag.StringP(
 			flagHTTPAddress,
-			"h",
+			"a",
 			"localhost:443",
 			"HTTP server host and port",
 		)

@@ -31,6 +31,14 @@ func TestYamlConfig(t *testing.T) {
 			want: `CacheEnabled: false
 CacheExpire: 0
 CacheGCInterval: 0
+DBEnabled: false
+DBHost: 
+DBName: 
+DBPort: 0
+DBRetryIncrease: 0
+DBRetryTries: 0
+DBUserName: 
+DBUserPassword: 
 GRPCAddress: 
 GRPCEnabled: false
 GRPCPort: 0
@@ -53,6 +61,14 @@ HTTPTLSKeyFile: `,
 			want: `CacheEnabled: false
 CacheExpire: 0
 CacheGCInterval: 0
+DBEnabled: false
+DBHost: 
+DBName: 
+DBPort: 0
+DBRetryIncrease: 0
+DBRetryTries: 0
+DBUserName: 
+DBUserPassword: 
 GRPCAddress: 
 GRPCEnabled: false
 GRPCPort: 0

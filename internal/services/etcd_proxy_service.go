@@ -1,3 +1,12 @@
+/*
+ * This file was last modified at 2024-08-16 11:35 by Victor N. Skurikhin.
+ * This is free and unencumbered software released into the public domain.
+ * For more information, please refer to <http://unlicense.org>
+ * etcd_proxy_service.go
+ * $Id$
+ */
+//!+
+
 package services
 
 import (
@@ -310,3 +319,6 @@ func (f *etcdProxyService) watch(ctx context.Context, cfg env.Config) {
 		}
 	}
 }
+
+//!-
+/* vim: set tabstop=4 softtabstop=4 shiftwidth=4 noexpandtab: */

@@ -48,7 +48,7 @@ func TestLoadConfigFirst(t *testing.T) {
 	}
 }
 
-func TestGetProperties(t *testing.T) {
+func TestGetConfig(t *testing.T) {
 	var tests = []struct {
 		name string
 		fRun func(*testing.T)

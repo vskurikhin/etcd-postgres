@@ -21,6 +21,7 @@ import (
 type environments struct {
 	CacheExpireMs      int           `env:"CACHE_EXPIRE_MS"`
 	CacheGCIntervalSec int           `env:"CACHE_GC_INTERVAL_SEC"`
+	DataBaseDSN        string        `env:"DATABASE_DSN"`
 	EtcdAddresses      []string      `env:"ETCD_ADDRESSES" envSeparator:","`
 	EtcdDialTimeout    time.Duration `env:"ETCD_DIAL_TIMEOUT"`
 	GRPCAddress        []string      `env:"GRPC_ADDRESS" envSeparator:":"`
