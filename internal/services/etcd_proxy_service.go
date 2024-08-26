@@ -13,7 +13,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/victor-skurikhin/etcd-client/v1/internal/controllers/dto"
+	"github.com/victor-skurikhin/etcd-client/v1/internal/domain"
+	"github.com/victor-skurikhin/etcd-client/v1/internal/domain/entity"
 	"github.com/victor-skurikhin/etcd-client/v1/internal/domain/memory"
+	"github.com/victor-skurikhin/etcd-client/v1/internal/domain/repo"
 	"github.com/victor-skurikhin/etcd-client/v1/internal/env"
 	"log/slog"
 	"sync"
@@ -25,7 +28,6 @@ import (
 )
 
 const BadOneOfUnionValue = "bad oneOf Union value"
-const CacheInvalidate = "Y2FjaGUtaW52YWxpZGF0ZQo="
 
 type EtcdProxyService interface {
 	pb.EtcdClientServiceServer
@@ -36,11 +38,13 @@ type EtcdProxyService interface {
 
 type etcdProxyService struct {
 	pb.UnimplementedEtcdClientServiceServer
-	cache        *memory.Storage
-	cacheExpire  time.Duration
-	clientConfig clientV3.Config
-	hitCounter   atomic.Uint64
-	sLog         *slog.Logger
+	cache            *memory.Storage
+	cacheExpire      time.Duration
+	clientConfig     clientV3.Config
+	etcdKeyValueRepo domain.Repo[domain.Actioner[*entity.KeyValue, entity.KeyValue], *entity.KeyValue, entity.KeyValue]
+	hitCounter       atomic.Uint64
+	postgresKeyValue domain.Repo[domain.Actioner[*entity.KeyValue, entity.KeyValue], *entity.KeyValue, entity.KeyValue]
+	sLog             *slog.Logger
 }
 
 var _ EtcdProxyService = (*etcdProxyService)(nil)
@@ -61,7 +65,9 @@ func GetEtcdProxyService(ctx context.Context, cfg env.Config) EtcdProxyService {
 		})
 		etcdProxyServ.cacheExpire = cfg.CacheExpire()
 		etcdProxyServ.clientConfig = *cfg.EtcdClientConfig()
+		etcdProxyServ.etcdKeyValueRepo = repo.GetKeyValueEtcdRepo(cfg)
 		etcdProxyServ.hitCounter = atomic.Uint64{}
+		etcdProxyServ.postgresKeyValue = repo.GetKeyValuePostgresRepo(cfg)
 		etcdProxyServ.sLog = cfg.Logger()
 		go func() {
 			etcdProxyServ.watch(ctx, cfg)
@@ -84,7 +90,7 @@ func (f *etcdProxyService) ApiPut(ctx context.Context, data dto.KeyValue) error 
 
 func (f *etcdProxyService) Delete(ctx context.Context, request *pb.EtcdClientRequest) (*pb.EtcdClientResponse, error) {
 
-	f.sLog.InfoContext(ctx, env.MSG+"EtcdProxyService.Delete", "msg", "gRPC", "request", *request)
+	f.sLog.InfoContext(ctx, env.MSG+"EtcdProxyService.Delete", "msg", "gRPC", "request", request)
 
 	var err error
 	var response = pb.EtcdClientResponse{Status: pb.Status_UNKNOWN}
@@ -112,7 +118,7 @@ func (f *etcdProxyService) Delete(ctx context.Context, request *pb.EtcdClientReq
 
 func (f *etcdProxyService) Get(ctx context.Context, request *pb.EtcdClientRequest) (*pb.EtcdClientResponse, error) {
 
-	f.sLog.InfoContext(ctx, env.MSG+"EtcdProxyService.Get", "msg", "gRPC", "request", *request)
+	f.sLog.InfoContext(ctx, env.MSG+"EtcdProxyService.Get", "msg", "gRPC", "request", request)
 
 	var err error
 	var response = pb.EtcdClientResponse{Status: pb.Status_UNKNOWN}
@@ -141,7 +147,7 @@ func (f *etcdProxyService) Get(ctx context.Context, request *pb.EtcdClientReques
 
 func (f *etcdProxyService) Put(ctx context.Context, request *pb.EtcdClientRequest) (*pb.EtcdClientResponse, error) {
 
-	f.sLog.InfoContext(ctx, env.MSG+"EtcdProxyService.Put", "msg", "gRPC", "request", *request)
+	f.sLog.InfoContext(ctx, env.MSG+"EtcdProxyService.Put", "msg", "gRPC", "request", request)
 
 	var err error
 	var response = pb.EtcdClientResponse{Status: pb.Status_UNKNOWN}

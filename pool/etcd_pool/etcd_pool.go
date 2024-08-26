@@ -32,7 +32,7 @@ var (
 type etcdPool struct {
 	clientConfig clientV3.Config
 	connections  int
-	pool         chan *clientV3.Client
+	pool         chan clientV3.KV
 	poolSize     int
 	sLog         *slog.Logger
 	timeout      time.Duration
@@ -43,7 +43,7 @@ func GetEtcdPool(cfg env.Config) pool.EtcdPool {
 	onceEtcdPool.Do(func() {
 		etcdPoolInst = new(etcdPool)
 		etcdPoolInst.clientConfig = *cfg.EtcdClientConfig()
-		etcdPoolInst.pool = make(chan *clientV3.Client, 50*runtime.NumCPU())
+		etcdPoolInst.pool = make(chan clientV3.KV, 50*runtime.NumCPU())
 		etcdPoolInst.poolSize = 50 * runtime.NumCPU()
 		etcdPoolInst.sLog = cfg.Logger()
 		etcdPoolInst.timeout = 500 * time.Millisecond
@@ -51,7 +51,7 @@ func GetEtcdPool(cfg env.Config) pool.EtcdPool {
 	return etcdPoolInst
 }
 
-func (e *etcdPool) AcquireClient() (*clientV3.Client, error) {
+func (e *etcdPool) AcquireClient() (clientV3.KV, error) {
 	for {
 		select {
 		case client := <-e.pool:
@@ -73,16 +73,19 @@ func (e *etcdPool) AcquireClient() (*clientV3.Client, error) {
 	}
 }
 
-func (e *etcdPool) ReleaseClient(client *clientV3.Client) error {
+func (e *etcdPool) ReleaseClient(client clientV3.KV) error {
 	select {
 	case e.pool <- client:
 		return nil
 	default:
-		if err := client.Close(); err != nil {
-			e.sLog.Error(env.MSG+"etcdPool: Close the client failed", "err", err)
-			return err
+		if cli, ok := client.(*clientV3.Client); ok {
+			if err := cli.Close(); err != nil {
+				e.sLog.Error(env.MSG+"etcdPool: Close the client failed", "err", err)
+				return err
+			} else {
+				e.connections--
+			}
 		}
-		e.connections--
 		return nil
 	}
 }
@@ -94,13 +97,14 @@ func (e *etcdPool) GracefulClose() (err error) {
 	close(e.pool)
 
 	for client := range e.pool {
-		err = client.Close()
+		if cli, ok := client.(*clientV3.Client); ok {
+			err = cli.Close()
+		}
 	}
-
 	return err
 }
 
-func (e *etcdPool) createClientToChan() *clientV3.Client {
+func (e *etcdPool) createClientToChan() clientV3.KV {
 
 	client, err := clientV3.New(e.clientConfig)
 
@@ -113,13 +117,16 @@ func (e *etcdPool) createClientToChan() *clientV3.Client {
 	return client
 }
 
-func getStateActiveConn(client *clientV3.Client) connectivity.State {
-	if client == nil {
-		return -1
-	} else if client.ActiveConnection() == nil {
-		return -2
+func getStateActiveConn(client clientV3.KV) connectivity.State {
+	if cli, ok := client.(*clientV3.Client); ok {
+		if client == nil {
+			return -2
+		} else if cli.ActiveConnection() == nil {
+			return -3
+		}
+		return cli.ActiveConnection().GetState()
 	}
-	return client.ActiveConnection().GetState()
+	return -1
 }
 
 //!-

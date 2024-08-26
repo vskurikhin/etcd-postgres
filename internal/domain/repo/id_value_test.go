@@ -11,9 +11,13 @@ package repo
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"github.com/victor-skurikhin/etcd-client/v1/internal/domain"
+	"strconv"
 	"strings"
+	"testing"
 )
 
 const (
@@ -47,8 +51,9 @@ var (
 )
 
 type IDValue struct {
-	id    int
-	value string
+	id      int
+	value   string
+	version sql.NullInt64
 }
 
 func (f *IDValue) Action(name string) domain.Actioner[*IDValue, IDValue] {
@@ -93,11 +98,22 @@ func (f *IDValue) Value() string {
 	return f.value
 }
 
+func (f *IDValue) Version() int64 {
+
+	if f == nil {
+		return 0
+	}
+	if f.version.Valid {
+		return f.version.Int64
+	}
+	return 0
+}
+
 func (f *IDValue) String() string {
 	if f == nil {
 		return "{}"
 	}
-	return fmt.Sprintf(`{"id": %d, "value": "%s"}`, f.id, f.value)
+	return fmt.Sprintf(`{"id": %d, "value": "%s", "version": %d}`, f.id, f.value, f.version.Int64)
 }
 
 func (f *IDValue) ToJSON() ([]byte, error) {
@@ -144,7 +160,7 @@ func (k *idValueCloner) Clone(u IDValue) IDValue {
 	if k == nil {
 		return IDValue{}
 	}
-	return IDValue{id: u.id, value: u.value}
+	return IDValue{id: u.id, value: u.value, version: u.version}
 }
 
 func (k *idValueCloner) Copy(t *IDValue) *IDValue {
@@ -152,7 +168,7 @@ func (k *idValueCloner) Copy(t *IDValue) *IDValue {
 	if t == nil {
 		return nil
 	}
-	return &IDValue{id: t.id, value: t.value}
+	return &IDValue{id: t.id, value: t.value, version: t.version}
 }
 
 type idValueDelete struct{}
@@ -166,7 +182,7 @@ func (k idValueDelete) Name() string {
 }
 
 func (k idValueDelete) SQL() string {
-	return `DELETE FROM test_id_value_test WHERE id = $1 RETURNING id, value`
+	return `DELETE FROM test_id_value_test WHERE id = $1 RETURNING id, value, version`
 }
 
 type idValueGetAll struct{}
@@ -180,7 +196,7 @@ func (k idValueGetAll) Name() string {
 }
 
 func (k idValueGetAll) SQL() string {
-	return `SELECT id, value FROM test_id_value_test`
+	return `SELECT id, value, version FROM test_id_value_test`
 }
 
 type idValueSelect struct{}
@@ -194,7 +210,7 @@ func (k idValueSelect) Name() string {
 }
 
 func (k idValueSelect) SQL() string {
-	return `SELECT id, value
+	return `SELECT id, value, version
 	FROM test_id_value_test
 	WHERE id = $1`
 }
@@ -202,7 +218,7 @@ func (k idValueSelect) SQL() string {
 type idValueUpsert struct{}
 
 func (k idValueUpsert) Args(e IDValue) []any {
-	return []any{e.id, e.value}
+	return []any{e.id, e.value, e.version}
 }
 
 func (k idValueUpsert) Name() string {
@@ -211,10 +227,35 @@ func (k idValueUpsert) Name() string {
 
 func (k idValueUpsert) SQL() string {
 	return `INSERT INTO test_id_value_test
-	(id, value) VALUES ($1, $2)
+	(id, value, version) VALUES ($1, $2, $3)
 	ON CONFLICT (id)
 	DO UPDATE SET value = $2
-	RETURNING id, value`
+	RETURNING id, value, version`
+}
+
+func getEtcdScanFunc(tb testing.TB, res *IDValue) func(scanner domain.Scanner) IDValue {
+	return func(scanner domain.Scanner) IDValue {
+		var (
+			key     string
+			value   string
+			version sql.NullInt64
+		)
+		er0 := scanner.Scan(&key, &value, &version)
+		assert.Nil(tb, er0)
+		id, er1 := strconv.Atoi(key)
+		assert.Nil(tb, er1)
+		res.version = version
+		return IDValue{id: id, value: value, version: res.version}
+	}
+}
+
+func getPostgresScanFunc(tb testing.TB) func(scanner domain.Scanner) IDValue {
+	return func(scanner domain.Scanner) IDValue {
+		var res IDValue
+		er0 := scanner.Scan(&res.id, &res.value, &res.version)
+		assert.Nil(tb, er0)
+		return res
+	}
 }
 
 //!-

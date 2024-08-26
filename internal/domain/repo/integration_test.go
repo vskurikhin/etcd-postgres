@@ -8,7 +8,6 @@ import (
 	"github.com/victor-skurikhin/etcd-client/v1/internal/domain"
 	"github.com/victor-skurikhin/etcd-client/v1/tool"
 	"log/slog"
-	"strconv"
 	"sync"
 	"testing"
 )
@@ -90,36 +89,23 @@ func integrationPostgresRepoCheck(t *testing.T, i interface{}) bool {
 
 func etcdUpsertSelect(t *testing.T, ctx context.Context) bool {
 
-	var etcdScan = func(scanner domain.Scanner) IDValue {
-		var key string
-		var value string
-		er0 := scanner.Scan(&key, &value)
-		assert.Nil(t, er0)
-		id, er1 := strconv.Atoi(key)
-		assert.Nil(t, er1)
-		return IDValue{id: id, value: value}
-	}
+	var res IDValue
+	var etcdScan = getEtcdScanFunc(t, &res)
 	expected := IDValue{id: 99, value: "value99"}
 	result, err := etcdRepo.Do(ctx, IDValueUpsert, expected, etcdScan)
 	assert.Nil(t, err)
 	assert.Equal(t, expected, result)
 	result, er2 := etcdRepo.Do(ctx, IDValueSelect, IDValue{id: 99}, etcdScan)
 	assert.Nil(t, er2)
+	expected.version = res.version
 	assert.Equal(t, expected, result)
 	return result == expected
 }
 
 func etcdDeleteSelect(t *testing.T, ctx context.Context) bool {
 
-	var etcdScan = func(scanner domain.Scanner) IDValue {
-		var key string
-		var value string
-		er0 := scanner.Scan(&key, &value)
-		assert.Nil(t, er0)
-		id, er1 := strconv.Atoi(key)
-		assert.Nil(t, er1)
-		return IDValue{id: id, value: value}
-	}
+	var res IDValue
+	var etcdScan = getEtcdScanFunc(t, &res)
 	expected := IDValue{id: 99}
 	result, err := etcdRepo.Do(ctx, IDValueDelete, expected, etcdScan)
 	assert.Nil(t, err)
@@ -133,15 +119,8 @@ func etcdDeleteSelect(t *testing.T, ctx context.Context) bool {
 
 func etcdUpsertGetAll(t *testing.T, ctx context.Context) bool {
 
-	var etcdScan = func(scanner domain.Scanner) IDValue {
-		var key string
-		var value string
-		er0 := scanner.Scan(&key, &value)
-		assert.Nil(t, er0)
-		id, er1 := strconv.Atoi(key)
-		assert.Nil(t, er1)
-		return IDValue{id: id, value: value}
-	}
+	var res IDValue
+	var etcdScan = getEtcdScanFunc(t, &res)
 	var wg sync.WaitGroup
 	wg.Add(IntegrationRecordCount)
 
@@ -162,12 +141,7 @@ func etcdUpsertGetAll(t *testing.T, ctx context.Context) bool {
 
 func postgresUpsertSelect(t *testing.T, ctx context.Context) bool {
 
-	var postgresScan = func(scanner domain.Scanner) IDValue {
-		var res IDValue
-		er0 := scanner.Scan(&res.id, &res.value)
-		assert.Nil(t, er0)
-		return res
-	}
+	var postgresScan = getPostgresScanFunc(t)
 	expected := IDValue{id: 99, value: "value99"}
 	result, err := repoPostgres.Do(ctx, IDValueUpsert, expected, postgresScan)
 	assert.Nil(t, err)
@@ -183,7 +157,7 @@ func postgresDeleteSelect(t *testing.T, ctx context.Context) bool {
 	expected := IDValue{id: 99, value: "value99"}
 	result, err := repoPostgres.Do(ctx, IDValueDelete, expected, func(scanner domain.Scanner) IDValue {
 		var res IDValue
-		er0 := scanner.Scan(&res.id, &res.value)
+		er0 := scanner.Scan(&res.id, &res.value, &res.version)
 		assert.Nil(t, er0)
 		return res
 	})
@@ -194,7 +168,7 @@ func postgresDeleteSelect(t *testing.T, ctx context.Context) bool {
 	expected = IDValue{}
 	result, er1 := repoPostgres.Do(ctx, IDValueSelect, expected, func(scanner domain.Scanner) IDValue {
 		var res IDValue
-		er2 = scanner.Scan(&res.id, &res.value)
+		er2 = scanner.Scan(&res.id, &res.value, &res.version)
 		assert.NotNil(t, er2)
 		assert.Equal(t, pgx.ErrNoRows, er2)
 		return res
@@ -208,7 +182,7 @@ func postgresUpsertGetAll(t *testing.T, ctx context.Context) bool {
 
 	var postgresScan = func(scanner domain.Scanner) IDValue {
 		var res IDValue
-		er0 := scanner.Scan(&res.id, &res.value)
+		er0 := scanner.Scan(&res.id, &res.value, &res.version)
 		assert.Nil(t, er0)
 		return res
 	}

@@ -26,12 +26,15 @@ func GetSingleFabricEtcdClient(cfg env.Config) pool.EtcdPool {
 	return singleFabricEtcdClientInst
 }
 
-func (s *singleFabricEtcdClient) AcquireClient() (*clientV3.Client, error) {
+func (s *singleFabricEtcdClient) AcquireClient() (clientV3.KV, error) {
 	return clientV3.New(s.clientConfig)
 }
 
-func (s *singleFabricEtcdClient) ReleaseClient(client *clientV3.Client) error {
-	return client.Close()
+func (s *singleFabricEtcdClient) ReleaseClient(client clientV3.KV) error {
+	if cli, ok := client.(*clientV3.Client); ok {
+		return cli.Close()
+	}
+	return nil
 }
 
 func (s *singleFabricEtcdClient) GracefulClose() error {

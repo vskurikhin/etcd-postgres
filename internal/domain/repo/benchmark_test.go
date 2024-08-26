@@ -15,7 +15,6 @@ import (
 	"math"
 	"os"
 	"runtime"
-	"strconv"
 	"testing"
 )
 
@@ -78,6 +77,9 @@ func BenchmarkEtcd(b *testing.B) {
 	from := math.MaxInt / 4
 	to := from + numberOps
 
+	var res IDValue
+	var etcdScan = getEtcdScanFunc(b, &res)
+
 	b.ResetTimer()
 
 	for k := 0; k < b.N; k++ {
@@ -87,44 +89,23 @@ func BenchmarkEtcd(b *testing.B) {
 
 		for j := from; j < to; j++ {
 			//go func(i int) {
-			_, _ = etcdRepo.Do(ctx, IDValueUpsert, IDValue{id: j, value: fmt.Sprintf("value%d", j)},
-				func(scanner domain.Scanner) IDValue {
-					var key string
-					var value string
-					_ = scanner.Scan(&key, &value)
-					id, _ := strconv.Atoi(key)
-					return IDValue{id: id, value: value}
-				})
+			_, _ = etcdRepo.Do(ctx, IDValueUpsert, IDValue{id: j, value: fmt.Sprintf("value%d", j)}, etcdScan)
 			//	wg.Done()
 			//}(j)
 		}
 		//wg.Wait()
 		for i := from; i < to; i++ {
-			res, err := etcdRepo.Do(ctx, IDValueSelect, IDValue{id: i},
-				func(scanner domain.Scanner) IDValue {
-					var key string
-					var value string
-					_ = scanner.Scan(&key, &value)
-					id, _ := strconv.Atoi(key)
-					return IDValue{id: id, value: value}
-				})
+			res, err := etcdRepo.Do(ctx, IDValueSelect, IDValue{id: i}, etcdScan)
 			if err != nil {
 				b.Fatal(err)
 			}
-			expected := IDValue{id: i, value: fmt.Sprintf("value%d", i)}
+			expected := IDValue{id: i, value: fmt.Sprintf("value%d", i), version: res.version}
 			if res != expected {
 				b.Fatal(err)
 			}
 		}
 		for i := from; i < to; i++ {
-			_, err := etcdRepo.Do(ctx, IDValueDelete, IDValue{id: i},
-				func(scanner domain.Scanner) IDValue {
-					var key string
-					var value string
-					_ = scanner.Scan(&key, &value)
-					id, _ := strconv.Atoi(key)
-					return IDValue{id: id, value: value}
-				})
+			_, err := etcdRepo.Do(ctx, IDValueDelete, IDValue{id: i}, etcdScan)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -144,37 +125,19 @@ func BenchmarkPostgres(b *testing.B) {
 	from := math.MaxInt / 4
 	to := from + numberOps
 
+	var postgresScan = getPostgresScanFunc(b)
+
 	b.ResetTimer()
 
 	for k := 0; k < b.N; k++ {
 		for i := from; i < to; i++ {
-			var res IDValue
-			_, err := repoPostgres.Do(ctx, IDValueUpsert, IDValue{id: i, value: fmt.Sprintf("value%d", i)},
-				func(scanner domain.Scanner) IDValue {
-					var id int
-					er0 := scanner.Scan(&id, &res.value)
-					if er0 != nil {
-						b.Fatal(er0)
-					}
-					res.id = id
-					return res
-				})
+			_, err := repoPostgres.Do(ctx, IDValueUpsert, IDValue{id: i, value: fmt.Sprintf("value%d", i)}, postgresScan)
 			if err != nil {
 				b.Fatal(err)
 			}
 		}
 		for i := from; i < to; i++ {
-			var res IDValue
-			_, err := repoPostgres.Do(ctx, IDValueSelect, IDValue{id: i},
-				func(scanner domain.Scanner) IDValue {
-					var id int
-					er0 := scanner.Scan(&id, &res.value)
-					if er0 != nil {
-						b.Fatal(er0)
-					}
-					res.id = id
-					return res
-				})
+			res, err := repoPostgres.Do(ctx, IDValueSelect, IDValue{id: i}, postgresScan)
 			if err != nil {
 				b.Fatal(err)
 			}

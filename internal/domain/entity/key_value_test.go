@@ -96,11 +96,6 @@ func TestKeyValue(t *testing.T) {
 			positiveKeyValueKeyCheck,
 		},
 		{
-			"test #14 negative for struct KeyValue method Key()",
-			negativeKeyValueKey,
-			negativeKeyValueKeyCheck,
-		},
-		{
 			"test #15 positive for struct KeyValue method Value()",
 			positiveKeyValueValue,
 			positiveKeyValueValueCheck,
@@ -241,7 +236,7 @@ func negativeKeyValueDeleteCheck(_ *testing.T, i interface{}) bool {
 }
 
 func positiveKeyValueJSON1(t *testing.T) (interface{}, error) {
-	expected := MakeKeyValue("key1", "value1", DefaultTAttributes())
+	expected := MakeKeyValue("key1", "value1", 0, DefaultTAttributes())
 	j, err := expected.ToJSON()
 	fmt.Printf("j: %s\n", string(j))
 	assert.Nil(t, err)
@@ -259,7 +254,7 @@ func positiveKeyValueJSON1Check(_ *testing.T, i interface{}) bool {
 }
 
 func positiveKeyValueJSON2(t *testing.T) (interface{}, error) {
-	expected := MakeKeyValue("key1", "", TAttributes{
+	expected := MakeKeyValue("key1", "", 0, TAttributes{
 		deleted:   sql.NullBool{Valid: true},
 		updatedAt: sql.NullTime{Valid: true},
 	})
@@ -279,7 +274,7 @@ func positiveKeyValueJSON2Check(_ *testing.T, i interface{}) bool {
 }
 
 func positiveKeyValueJSON3(t *testing.T) (interface{}, error) {
-	expected := MakeKeyValue("key1", "", TAttributes{deleted: sql.NullBool{true, true}})
+	expected := MakeKeyValue("key1", "", 0, TAttributes{deleted: sql.NullBool{true, true}})
 	j, err := expected.ToJSON()
 	assert.Nil(t, err)
 	assert.NotNil(t, j)
@@ -335,15 +330,6 @@ func positiveKeyValueKeyCheck(_ *testing.T, i interface{}) bool {
 	return i == "key1"
 }
 
-func negativeKeyValueKey(_ *testing.T) (interface{}, error) {
-	var kv *KeyValue
-	return kv.Key(), nil
-}
-
-func negativeKeyValueKeyCheck(_ *testing.T, i interface{}) bool {
-	return i == ""
-}
-
 func positiveKeyValueValue(_ *testing.T) (interface{}, error) {
 	kv := KeyValue{value: "value1"}
 	return kv.Value(), nil
@@ -368,7 +354,7 @@ func positiveKeyValueString(_ *testing.T) (interface{}, error) {
 }
 
 func positiveKeyValueStringCheck(_ *testing.T, i interface{}) bool {
-	return i == `{"key": "key1", "value": "value1", "deleted": {false false}, "createdAt": "0001-01-01 00:00:00 +0000 UTC", "updatedAt": "{0001-01-01 00:00:00 +0000 UTC false}"}`
+	return i == `{"key": "key1", "value": "value1", "version": 0, "deleted": {false false}, "createdAt": "0001-01-01 00:00:00 +0000 UTC", "updatedAt": "{0001-01-01 00:00:00 +0000 UTC false}"}`
 }
 
 func positiveKeyValueUpsert(_ *testing.T) (interface{}, error) {

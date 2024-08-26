@@ -11,6 +11,7 @@ package entity
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"github.com/goccy/go-json"
 	"github.com/victor-skurikhin/etcd-client/v1/internal/domain"
@@ -40,14 +41,16 @@ var (
 
 type KeyValue struct {
 	TAttributes
-	key   string
-	value string
+	key     string
+	value   string
+	version sql.NullInt64
 }
 
 type keyValue struct {
 	tAttributes
-	Key   string `json:"key"`
-	Value string `json:"value,omitempty"`
+	Key     string `json:"key"`
+	Value   string `json:"value,omitempty"`
+	Version int64  `json:"version,omitempty"`
 }
 
 func GetAllKeyValue(
@@ -59,7 +62,7 @@ func GetAllKeyValue(
 
 	result, er0 := repo.Get(ctx, KeyValueGetAll, KeyValue{}, func(s domain.Scanner) KeyValue {
 		var r KeyValue
-		err = s.Scan(&r.key, &r.value, &r.deleted, &r.createdAt, &r.updatedAt)
+		err = s.Scan(&r.key, &r.value, &r.version, &r.deleted, &r.createdAt, &r.updatedAt)
 		return r
 	})
 	if er0 != nil {
@@ -68,16 +71,17 @@ func GetAllKeyValue(
 	return result, err
 }
 
-func MakeKeyValue(key, value string, t TAttributes) KeyValue {
+func MakeKeyValue(key, value string, version int64, t TAttributes) KeyValue {
 	return KeyValue{
 		TAttributes: MakeTAttributes(t.deleted, t.createdAt, t.updatedAt),
 		key:         key,
 		value:       value,
+		version:     VersionToNullInt64(version),
 	}
 }
 
-func NewKeyValue(key, value string, t TAttributes) *KeyValue {
-	n := MakeKeyValue(key, value, t)
+func NewKeyValue(key, value string, version int64, t TAttributes) *KeyValue {
+	n := MakeKeyValue(key, value, version, t)
 	return &n
 }
 
@@ -87,7 +91,7 @@ func GetKeyValue(
 	key string,
 ) (r KeyValue, err error) {
 	_, er0 := repo.Do(ctx, KeyValueSelect, KeyValue{key: key}, func(s domain.Scanner) KeyValue {
-		err = s.Scan(&r.key, &r.value, &r.deleted, &r.createdAt, &r.updatedAt)
+		err = s.Scan(&r.key, &r.value, &r.version, &r.deleted, &r.createdAt, &r.updatedAt)
 		return r
 	})
 	if er0 != nil {
@@ -122,7 +126,7 @@ func (f *KeyValue) FromJSON(data []byte) (err error) {
 	if err != nil {
 		return err
 	}
-	*f = MakeKeyValue(t.Key, t.Value, MakeTAttributes(
+	*f = MakeKeyValue(t.Key, t.Value, t.Version, MakeTAttributes(
 		t.Deleted.ToNullBool(), t.CreatedAt, t.UpdatedAt.ToNullTime(),
 	))
 	return nil
@@ -140,11 +144,24 @@ func (f *KeyValue) Value() string {
 	return f.value
 }
 
+func (f *KeyValue) Version() int64 {
+
+	if f == nil {
+		return 0
+	}
+	if f.version.Valid {
+		return f.version.Int64
+	}
+	return 0
+}
+
 func (f *KeyValue) String() string {
 	if f == nil {
 		return "{}"
 	}
-	return fmt.Sprintf(`{"key": "%s", "value": "%s", %s}`, f.key, f.value, f.TAttributes.String())
+	return fmt.Sprintf(
+		`{"key": "%s", "value": "%s", "version": %d, %s}`,
+		f.key, f.value, f.version.Int64, f.TAttributes.String())
 }
 
 func (f *KeyValue) Delete(
@@ -158,14 +175,18 @@ func (f *KeyValue) Delete(
 	return f.do(ctx, KeyValueDelete, repo)
 }
 
-func (f KeyValue) ToJSON() ([]byte, error) {
+func (f *KeyValue) ToJSON() ([]byte, error) {
 
+	if f == nil {
+		return nil, ErrKeyValueNil
+	}
 	result, err := json.MarshalNoEscape(keyValue{
 		tAttributes: makeTAttributes(
 			FromNullBool(f.deleted), f.createdAt, FromNullTime(f.updatedAt),
 		),
-		Key:   f.key,
-		Value: f.value,
+		Key:     f.key,
+		Value:   f.value,
+		Version: FromNullInt64ToVersion(f.version),
 	})
 	if err != nil {
 		return nil, err
@@ -193,7 +214,7 @@ func (f *KeyValue) do(
 	_, er0 := repo.Do(ctx, action, *f, func(s domain.Scanner) KeyValue {
 
 		t := *f
-		err = s.Scan(&t.key, &t.value, &t.deleted, &t.createdAt, &t.updatedAt)
+		err = s.Scan(&t.key, &t.value, &t.version, &t.deleted, &t.createdAt, &t.updatedAt)
 
 		if err == nil {
 			*f = t
@@ -209,7 +230,7 @@ func (f *KeyValue) do(
 type keyValueCloner struct{}
 
 func (k *keyValueCloner) Clone(u KeyValue) KeyValue {
-	return MakeKeyValue(u.key, u.value, u.TAttributes)
+	return MakeKeyValue(u.key, u.value, FromNullInt64ToVersion(u.version), u.TAttributes)
 }
 
 func (k *keyValueCloner) Copy(t *KeyValue) *KeyValue {
@@ -217,7 +238,7 @@ func (k *keyValueCloner) Copy(t *KeyValue) *KeyValue {
 	if t == nil {
 		return nil
 	}
-	return NewKeyValue(t.key, t.value, t.TAttributes)
+	return NewKeyValue(t.key, t.value, FromNullInt64ToVersion(t.version), t.TAttributes)
 }
 
 type keyValueDelete struct{}
@@ -256,6 +277,7 @@ type keyValueSelect struct{}
 func (k keyValueSelect) Args(e KeyValue) []any {
 	return []any{e.key}
 }
+
 func (k keyValueSelect) Name() string {
 	return domain.SelectAction
 }

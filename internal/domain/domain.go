@@ -10,10 +10,6 @@
 // Package domain TODO.
 package domain
 
-import (
-	"context"
-)
-
 const (
 	DeleteAction = "delete"
 	GetAllAction = "getall"
@@ -41,11 +37,6 @@ type Entity interface {
 // Ptr constraining a type to its pointer type
 type Ptr[T Entity] interface {
 	*T
-}
-
-type Repo[A Actioner[T, U], T Ptr[U], U Entity] interface {
-	Do(ctx context.Context, action A, unit U, scan func(Scanner) U) (U, error)
-	Get(ctx context.Context, action A, unit U, scan func(Scanner) U) ([]U, error)
 }
 
 type Scanner interface {

@@ -32,11 +32,22 @@ func FromNullBool(b sql.NullBool) JsonNullBool {
 	}{Bool: b.Bool, Valid: b.Valid}}
 }
 
+func FromNullInt64ToVersion(b sql.NullInt64) int64 {
+	return b.Int64
+}
+
 func FromNullTime(b sql.NullTime) JsonNullTime {
 	return JsonNullTime{NullTime: struct {
 		Time  time.Time
 		Valid bool
 	}{Time: b.Time, Valid: b.Valid}}
+}
+
+func VersionToNullInt64(v int64) sql.NullInt64 {
+	if v == 0 {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: v, Valid: true}
 }
 
 func (v JsonNullBool) MarshalJSON() ([]byte, error) {

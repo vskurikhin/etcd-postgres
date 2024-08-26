@@ -5,7 +5,7 @@ import (
 )
 
 type EtcdPool interface {
-	AcquireClient() (*clientV3.Client, error)
-	ReleaseClient(*clientV3.Client) error
+	AcquireClient() (clientV3.KV, error)
+	ReleaseClient(clientV3.KV) error
 	GracefulClose() error
 }
