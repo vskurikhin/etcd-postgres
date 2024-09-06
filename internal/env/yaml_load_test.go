@@ -46,6 +46,14 @@ func TestLoadConfig(t *testing.T) {
 						Enabled     bool
 						cacheConfig `mapstructure:",squash"`
 					}
+					DB struct {
+						Enabled  bool
+						dbConfig `mapstructure:",squash"`
+						Retry    struct {
+							Increase int `mapstructure:"increase"`
+							Tries    int `mapstructure:"tries"`
+						}
+					}
 					Etcd struct {
 						Enabled    bool
 						etcdConfig `mapstructure:",squash"`
@@ -79,6 +87,30 @@ func TestLoadConfig(t *testing.T) {
 						cacheConfig: cacheConfig{
 							ExpireMs:      1000,
 							GCIntervalSec: 10,
+						},
+					},
+					DB: struct {
+						Enabled  bool
+						dbConfig `mapstructure:",squash"`
+						Retry    struct {
+							Increase int `mapstructure:"increase"`
+							Tries    int `mapstructure:"tries"`
+						}
+					}{
+						Enabled: false,
+						dbConfig: dbConfig{
+							Name:         "db",
+							Host:         "localhost",
+							Port:         5432,
+							UserName:     "dbuser",
+							UserPassword: "password",
+						},
+						Retry: struct {
+							Increase int `mapstructure:"increase"`
+							Tries    int `mapstructure:"tries"`
+						}{
+							Increase: 1,
+							Tries:    3,
 						},
 					},
 					Etcd: struct {
@@ -189,7 +221,7 @@ func configFileNotFoundError(path string) error {
 	wd := chDir()
 	defer func() { _ = os.Chdir(wd) }()
 
-	viper.SetConfigName("etcd-proxy")
+	viper.SetConfigName("etcd-client.yaml")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath("/etc/etcd-proxy/")
 	viper.AddConfigPath(path)

@@ -13,6 +13,7 @@ package env
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/jackc/pgx/v5/pgxpool"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"log/slog"
 	"sync"
@@ -25,6 +26,7 @@ import (
 const (
 	propertyCacheExpireMs            = "cache-expire"
 	propertyCacheGCIntervalSec       = "cache-gc-interval"
+	propertyDBPool                   = "db-pool"
 	propertyDebug                    = "debug"
 	propertyEnvironments             = "environments"
 	propertyEtcdClientConfig         = "etcd-proxy-config"
@@ -43,6 +45,7 @@ type Config interface {
 	fmt.Stringer
 	CacheExpire() time.Duration
 	CacheGCInterval() time.Duration
+	DBPool() *pgxpool.Pool
 	Debug() bool
 	Environments() environments
 	EtcdClientConfig() *clientv3.Config
@@ -81,6 +84,9 @@ func GetConfig() Config {
 		cacheGCInterval, err := p.getCacheGCInterval()
 		slog.Debug(MSG+"GetConfig", "cacheGCInterval", cacheGCInterval, "err", err)
 
+		dbPool, err := makeDBPool(flm, env, yml)
+		slog.Info(MSG+"GetConfig", "dbDisable", err)
+
 		etcdAddresses, err := p.getEtcdAddresses()
 		slog.Info(MSG+"GetConfig", "etcdAddresses", etcdAddresses, "err", err)
 		etcdDialTimeout, err := p.getEtcdDialTimeout()
@@ -99,6 +105,7 @@ func GetConfig() Config {
 		properties = getProperties(
 			WithCacheExpire(cacheExpire),
 			WithCacheGCInterval(cacheGCInterval),
+			withDBPool(dbPool),
 			WithDebug(*flm[propertyDebug].(*bool)),
 			WithEnvironments(*env),
 			WithEtcdClientConfig(etcdClientConfig(etcdAddresses, etcdDialTimeout)),
@@ -152,6 +159,25 @@ func (p *mapProperties) CacheGCInterval() time.Duration {
 		}
 	}
 	return 0
+}
+
+// withDBPool — пул подключения к базе данных PostgreSQL.
+func withDBPool(pool *pgxpool.Pool) func(*mapProperties) {
+	return func(p *mapProperties) {
+		if pool != nil {
+			p.mp.Store(propertyDBPool, pool)
+		}
+	}
+}
+
+// DBPool геттер пула подключения к базе данных PostgreSQL.
+func (p *mapProperties) DBPool() *pgxpool.Pool {
+	if p, ok := p.mp.Load(propertyDBPool); ok {
+		if pool, ok := p.(*pgxpool.Pool); ok {
+			return pool
+		}
+	}
+	return nil
 }
 
 // WithDebug — интервал очистки кэша.
@@ -368,6 +394,22 @@ HTTPTransportCredentials: %v
 		p.HTTPTLSConfig(),
 		p.YamlConfig(),
 	)
+}
+
+type TestConfig interface {
+	GetTestConfig(opts ...func(*mapProperties)) Config
+}
+
+func (p *mapProperties) GetTestConfig(opts ...func(*mapProperties)) Config {
+	return getProperties(opts...)
+}
+
+func WithTestDBPool(name string, pool *pgxpool.Pool) func(*mapProperties) {
+	return func(p *mapProperties) {
+		if pool != nil {
+			p.mp.Store(name, pool)
+		}
+	}
 }
 
 func debug(flags map[string]interface{}) bool {

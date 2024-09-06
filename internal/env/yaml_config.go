@@ -23,6 +23,14 @@ type YamlConfig interface {
 	CacheEnabled() bool
 	CacheExpireMs() int
 	CacheGCIntervalSec() int
+	DBEnabled() bool
+	DBHost() string
+	DBName() string
+	DBPort() int
+	DBRetryIncrease() int
+	DBRetryTries() int
+	DBUserName() string
+	DBUserPassword() string
 	EtcdAddresses() []string
 	EtcdEnabled() bool
 	EtcdDialTimeout() time.Duration
@@ -52,6 +60,14 @@ type yamlConfig struct {
 		Cache struct {
 			Enabled     bool
 			cacheConfig `mapstructure:",squash"`
+		}
+		DB struct {
+			Enabled  bool
+			dbConfig `mapstructure:",squash"`
+			Retry    struct {
+				Increase int `mapstructure:"increase"`
+				Tries    int `mapstructure:"tries"`
+			}
 		}
 		Etcd struct {
 			Enabled    bool
@@ -83,6 +99,14 @@ type yamlConfig struct {
 type cacheConfig struct {
 	ExpireMs      int `mapstructure:"expire_ms"`
 	GCIntervalSec int `mapstructure:"gc_interval_sec"`
+}
+
+type dbConfig struct {
+	Name         string
+	Host         string
+	Port         int16
+	UserName     string
+	UserPassword string `mapstructure:"password"`
 }
 
 type etcdConfig struct {
@@ -132,6 +156,80 @@ func (y *yamlConfig) CacheGCIntervalSec() int {
 		return y.EtcdClient.Cache.GCIntervalSec
 	}
 	return 0
+}
+
+// DBEnabled тумблер подключения к базе данных PostgreSQL.
+func (y *yamlConfig) DBEnabled() bool {
+
+	if y != nil {
+		return y.EtcdClient.DB.Enabled
+	}
+	return false
+}
+
+// DBHost хост базы данных PostgreSQL.
+func (y *yamlConfig) DBHost() string {
+
+	if y != nil {
+		return y.EtcdClient.DB.Host
+	}
+	return ""
+}
+
+// DBName имя базы данных PostgreSQL.
+func (y *yamlConfig) DBName() string {
+
+	if y != nil {
+		return y.EtcdClient.DB.Name
+	}
+	return ""
+}
+
+// DBPort порт базы данных PostgreSQL.
+func (y *yamlConfig) DBPort() int {
+
+	if y != nil {
+		return int(y.EtcdClient.DB.Port)
+	}
+	return 0
+}
+
+// DBRetryIncrease дельта на которую увеличивается интервал ожидания
+// повторного выполнения запросов к базе данных PostgreSQL при ошибках.
+func (y *yamlConfig) DBRetryIncrease() int {
+
+	if y != nil {
+		return y.EtcdClient.DB.Retry.Increase
+	}
+	return 0
+}
+
+// DBRetryTries количество попыток выполнения
+// повторного запроса к базе данных PostgreSQL при ошибке.
+func (y *yamlConfig) DBRetryTries() int {
+
+	if y != nil {
+		return y.EtcdClient.DB.Retry.Tries
+	}
+	return 0
+}
+
+// DBUserName имя пользователя базы данных PostgreSQL.
+func (y *yamlConfig) DBUserName() string {
+
+	if y != nil {
+		return y.EtcdClient.DB.UserName
+	}
+	return ""
+}
+
+// DBUserPassword пароль пользователя базы данных PostgreSQL.
+func (y *yamlConfig) DBUserPassword() string {
+
+	if y != nil {
+		return y.EtcdClient.DB.UserPassword
+	}
+	return ""
 }
 
 func (y *yamlConfig) EtcdAddresses() []string {
@@ -330,6 +428,14 @@ func (y *yamlConfig) String() string {
 		`CacheEnabled: %v
 CacheExpire: %d
 CacheGCInterval: %d
+DBEnabled: %v
+DBHost: %s
+DBName: %s
+DBPort: %d
+DBRetryIncrease: %d
+DBRetryTries: %d
+DBUserName: %s
+DBUserPassword: %s
 GRPCAddress: %s
 GRPCEnabled: %v
 GRPCPort: %d
@@ -348,6 +454,14 @@ HTTPTLSKeyFile: %s`,
 		y.CacheEnabled(),
 		y.CacheExpireMs(),
 		y.CacheGCIntervalSec(),
+		y.DBEnabled(),
+		y.DBHost(),
+		y.DBName(),
+		y.DBPort(),
+		y.DBRetryIncrease(),
+		y.DBRetryTries(),
+		y.DBUserName(),
+		y.DBUserPassword(),
 		y.GRPCAddress(),
 		y.GRPCEnabled(),
 		y.GRPCPort(),

@@ -4,6 +4,16 @@ etcdclient:
     enabled: true
     expire_ms: 1000
     gc_interval_sec: 10
+  db:
+    enabled: false
+    host: localhost
+    name: db
+    password: password
+    port: 5432
+    retry:
+      increase: 1
+      tries: 3
+    username: dbuser
   etcd:
     addresses:
       - localhost:1379
